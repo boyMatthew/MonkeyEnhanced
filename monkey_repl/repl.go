@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 	lexer "myMonkey/monkey_lexer"
-	token "myMonkey/monkey_token"
+	parser "myMonkey/monkey_parser"
 )
 
 const (
@@ -27,16 +27,25 @@ func Start(read io.Reader, write io.Writer) error {
 		}
 		line := scanner.Text()
 		l := lexer.NewLexer(line)
+		p := parser.NewParser(l)
+		pro := p.Parse()
 		_, err = fmt.Fprintf(write, WRITEPROMPT, i)
 		if err != nil {
 			return fmt.Errorf("%d: write WRITEPROMPT failed: %v", i, err)
 		}
-		for tok := l.NextToken(); tok.Type != token.EOF; tok = l.NextToken() {
-			_, err := fmt.Fprintf(write, "%+v\n", tok)
-			if err != nil {
-				return fmt.Errorf("%d: write token failed: %v", i, err)
-			}
+		if len(p.Errors()) != 0 {
+			printParserErrors(write, p.Errors())
+			continue
 		}
+		io.WriteString(write, pro.String())
+		io.WriteString(write, "\n")
 	}
 	return nil
+}
+
+func printParserErrors(write io.Writer, errors []string) {
+	io.WriteString(write, "Whoops! We've encountered some errors!\nParser errors:\n")
+	for _, msg := range errors {
+		io.WriteString(write, "\t"+msg+"\n")
+	}
 }

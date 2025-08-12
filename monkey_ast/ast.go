@@ -3,6 +3,7 @@ package monkey_ast
 import (
 	"bytes"
 	token "myMonkey/monkey_token"
+	"strings"
 )
 
 type Node interface {
@@ -171,9 +172,11 @@ func (bs *BlockStatement) statementNode()       {}
 func (bs *BlockStatement) TokenLiteral() string { return bs.Token.Literal }
 func (bs *BlockStatement) String() string {
 	var out bytes.Buffer
+	out.WriteString("{")
 	for _, s := range bs.Statements {
 		out.WriteString(s.String())
 	}
+	out.WriteString("}")
 	return out.String()
 }
 
@@ -193,8 +196,46 @@ func (ce *ConditionExpression) String() string {
 	out.WriteString(" ")
 	out.WriteString(ce.True.String())
 	if ce.False != nil {
-		out.WriteString("else ")
-		out.WriteString(ce.False.String())
+		out.WriteString("else " + ce.False.String())
 	}
+	return out.String()
+}
+
+type FunctionLiteral struct {
+	Token      token.Token
+	Parameters []*Identifier
+	Body       *BlockStatement
+}
+
+func (fl *FunctionLiteral) expressionNode()      {}
+func (fl *FunctionLiteral) TokenLiteral() string { return fl.Token.Literal }
+func (fl *FunctionLiteral) String() string {
+	var out bytes.Buffer
+	params := []string{}
+	for _, p := range fl.Parameters {
+		params = append(params, p.String())
+	}
+	out.WriteString(fl.TokenLiteral() + "(")
+	out.WriteString(strings.Join(params, ", "))
+	out.WriteString(") " + fl.Body.String())
+	return out.String()
+}
+
+type CallExpression struct {
+	Token     token.Token
+	Function  Expression
+	Arguments []Expression
+}
+
+func (ce *CallExpression) expressionNode()      {}
+func (ce *CallExpression) TokenLiteral() string { return ce.Token.Literal }
+func (ce *CallExpression) String() string {
+	var out bytes.Buffer
+	args := []string{}
+	for _, a := range ce.Arguments {
+		args = append(args, a.String())
+	}
+	out.WriteString(ce.Function.String() + "(")
+	out.WriteString(strings.Join(args, ", ") + ")")
 	return out.String()
 }
