@@ -337,7 +337,7 @@ func (p *Parser) parseCallArgs() []ast.Expression {
 		return args
 	}
 	args = append(args, p.prattParser(LOWEST))
-	for p.curTokenIs(token.COMMA) {
+	for p.nextTokenIs(token.COMMA) {
 		p.nextToken()
 		p.nextToken()
 		args = append(args, p.prattParser(LOWEST))
