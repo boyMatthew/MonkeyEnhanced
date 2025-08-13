@@ -105,6 +105,8 @@ func (l *Lexer) NextToken() token.Token {
 		tok = newToken(token.LPAREN, l.ch)
 	case ')':
 		tok = newToken(token.RPAREN, l.ch)
+	case '|':
+		tok = newToken(token.VERTICAL, l.ch)
 	case 0:
 		tok = token.Token{Type: token.EOF, Literal: ""}
 	default:

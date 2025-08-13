@@ -15,6 +15,8 @@ var keywords = map[string]TokenType{
 	"if":    IF,
 	"else":  ELSE,
 	"ret":   RETURN,
+	"for":   LOOP,
+	"while": LOOP,
 }
 
 func LookupKeyword(keyword string) TokenType {
@@ -58,6 +60,7 @@ const (
 	RBRACKET  = "]"
 	LBRACE    = "{"
 	RBRACE    = "}"
+	VERTICAL  = "|"
 
 	FUNCTION = "FUNC"
 	DEFINE   = "LET"
@@ -66,4 +69,5 @@ const (
 	IF       = "IF"
 	ELSE     = "ELSE"
 	RETURN   = "RETURN"
+	LOOP     = "LOOP"
 )

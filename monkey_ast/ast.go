@@ -78,6 +78,22 @@ func (ls *LetStatement) String() string {
 	return out.String()
 }
 
+type AssignExpression struct {
+	Token token.Token //should be =
+	Name  *Identifier
+	Value Expression
+}
+
+func (ae *AssignExpression) expressionNode()      {}
+func (ae *AssignExpression) TokenLiteral() string { return ae.Token.Literal }
+func (ae *AssignExpression) String() string {
+	var out bytes.Buffer
+	out.WriteString(ae.Name.String() + " ")
+	out.WriteString(ae.TokenLiteral() + " ")
+	out.WriteString(ae.Value.String())
+	return out.String()
+}
+
 type ReturnStatement struct {
 	Token       token.Token
 	ReturnValue Expression
@@ -237,5 +253,32 @@ func (ce *CallExpression) String() string {
 	}
 	out.WriteString(ce.Function.String() + "(")
 	out.WriteString(strings.Join(args, ", ") + ")")
+	return out.String()
+}
+
+type LoopStatement struct {
+	Token      token.Token
+	Initial    *LetStatement
+	Condition  *ExpressionStatement
+	AfterBlock *ExpressionStatement
+	Body       *BlockStatement
+}
+
+func (ls *LoopStatement) statementNode()       {}
+func (ls *LoopStatement) TokenLiteral() string { return ls.Token.Literal }
+func (ls *LoopStatement) String() string {
+	var out bytes.Buffer
+	out.WriteString(ls.TokenLiteral() + "(")
+	if ls.Initial != nil {
+		out.WriteString(ls.Initial.String())
+		out.WriteString(";")
+	}
+	out.WriteString(ls.Condition.String())
+	if ls.AfterBlock != nil {
+		out.WriteString(";")
+		out.WriteString(ls.AfterBlock.String())
+	}
+	out.WriteString(")")
+	out.WriteString(ls.Body.String())
 	return out.String()
 }

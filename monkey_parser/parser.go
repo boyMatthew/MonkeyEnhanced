@@ -31,6 +31,7 @@ const (
 	SHIFT
 	PREFIX
 	CALL
+	ASSIGN
 )
 
 var precedences = map[token.TokenType]Precedence{
@@ -47,6 +48,7 @@ var precedences = map[token.TokenType]Precedence{
 	token.LSHIFT:   SHIFT,
 	token.RSHIFT:   SHIFT,
 	token.LPAREN:   CALL,
+	token.ASSIGN:   ASSIGN,
 }
 
 func NewParser(l *lexer.Lexer) *Parser {
@@ -75,6 +77,7 @@ func NewParser(l *lexer.Lexer) *Parser {
 	p.registerLed(token.LSHIFT, p.parseInfix)
 	p.registerLed(token.RSHIFT, p.parseInfix)
 	p.registerLed(token.LPAREN, p.parseCall)
+	p.registerLed(token.ASSIGN, p.parseAssign)
 	p.nextToken()
 	p.nextToken()
 	return p
@@ -150,6 +153,8 @@ func (p *Parser) parseStatement() ast.Statement {
 		return p.parseDefinition()
 	case token.RETURN:
 		return p.parseReturn()
+	case token.LOOP:
+		return p.parseLoop()
 	default:
 		return p.parseExpression()
 	}
@@ -189,6 +194,31 @@ func (p *Parser) parseExpression() *ast.ExpressionStatement {
 		p.nextToken()
 	}
 	return stmt
+}
+
+func (p *Parser) parseLoop() *ast.LoopStatement {
+	loop := &ast.LoopStatement{Token: p.curToken}
+	if !p.expectNext(token.LPAREN) {
+		return nil
+	}
+	p.nextToken()
+	if loop.Token.Literal == "for" {
+		loop.Initial = p.parseDefinition()
+		p.nextToken()
+		loop.Condition = p.parseExpression()
+		p.nextToken()
+		loop.AfterBlock = p.parseExpression()
+	} else {
+		loop.Condition = p.parseExpression()
+	}
+	if !p.expectNext(token.RPAREN) {
+		return nil
+	}
+	if !p.expectNext(token.LBRACE) {
+		return nil
+	}
+	loop.Body = p.parseBlock()
+	return loop
 }
 
 func (p *Parser) prattParser(pre Precedence) ast.Expression {
@@ -346,4 +376,17 @@ func (p *Parser) parseCallArgs() []ast.Expression {
 		return nil
 	}
 	return args
+}
+
+func (p *Parser) parseAssign(left ast.Expression) ast.Expression {
+	name, ok := left.(*ast.Identifier)
+	if !ok {
+		msg := fmt.Sprintf("Expected an identifier, got %s", left.String())
+		p.errors = append(p.errors, msg)
+		return nil
+	}
+	assign := &ast.AssignExpression{Token: p.curToken, Name: name}
+	p.nextToken()
+	assign.Value = p.prattParser(LOWEST)
+	return assign
 }

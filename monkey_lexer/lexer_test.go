@@ -24,6 +24,8 @@ func TestLexer(t *testing.T) {
 		8.7 == -9.8;
 		if (5!=10) {false;} else {true;}
 		karma:a:bitch;
+		for(def x = 0;| x < 10;| ++x) {}
+		while(true) {}
 	`
 	tests := []aTest{
 		{token.DEFINE, "def"},
@@ -118,6 +120,30 @@ func TestLexer(t *testing.T) {
 		{token.COLON, ":"},
 		{token.IDENTIFIER, "bitch"},
 		{token.SEMICOLON, ";"},
+		{token.LOOP, "for"},
+		{token.LPAREN, "("},
+		{token.DEFINE, "def"},
+		{token.IDENTIFIER, "x"},
+		{token.ASSIGN, "="},
+		{token.NUMBER, "0"},
+		{token.SEMICOLON, ";"},
+		{token.VERTICAL, "|"},
+		{token.IDENTIFIER, "x"},
+		{token.LT, "<"},
+		{token.NUMBER, "10"},
+		{token.SEMICOLON, ";"},
+		{token.VERTICAL, "|"},
+		{token.BUMPPLUS, "++"},
+		{token.IDENTIFIER, "x"},
+		{token.RPAREN, ")"},
+		{token.LBRACE, "{"},
+		{token.RBRACE, "}"},
+		{token.LOOP, "while"},
+		{token.LPAREN, "("},
+		{token.TRUE, "true"},
+		{token.RPAREN, ")"},
+		{token.LBRACE, "{"},
+		{token.RBRACE, "}"},
 		{token.EOF, ""},
 	}
 	dealTesting(t, input, tests)
