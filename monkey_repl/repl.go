@@ -6,6 +6,7 @@ import (
 	"io"
 	evaluator "myMonkey/monkey_evaluator"
 	lexer "myMonkey/monkey_lexer"
+	object "myMonkey/monkey_object"
 	parser "myMonkey/monkey_parser"
 )
 
@@ -16,6 +17,7 @@ const (
 
 func Start(read io.Reader, write io.Writer) error {
 	scanner := bufio.NewScanner(read)
+	env := object.NewEnvironment()
 
 	for i := 1; true; i++ {
 		_, err := fmt.Fprintf(write, READPROMPT, i)
@@ -30,16 +32,20 @@ func Start(read io.Reader, write io.Writer) error {
 		l := lexer.NewLexer(line)
 		p := parser.NewParser(l)
 		pro := p.Parse()
-		_, err = fmt.Fprintf(write, WRITEPROMPT, i)
-		if err != nil {
-			return fmt.Errorf("%d: write WRITEPROMPT failed: %v", i, err)
-		}
 		if len(p.Errors()) != 0 {
+			_, err = fmt.Fprintf(write, WRITEPROMPT, i)
+			if err != nil {
+				return fmt.Errorf("%d: write WRITEPROMPT failed: %v", i, err)
+			}
 			printParserErrors(write, p.Errors())
 			continue
 		}
-		evaluated := evaluator.Eval(pro)
+		evaluated := evaluator.Eval(pro, env)
 		if evaluated != nil {
+			_, err = fmt.Fprintf(write, WRITEPROMPT, i)
+			if err != nil {
+				return fmt.Errorf("%d: write WRITEPROMPT failed: %v", i, err)
+			}
 			io.WriteString(write, evaluated.Inspect())
 			io.WriteString(write, "\n")
 		}

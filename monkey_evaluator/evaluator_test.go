@@ -113,11 +113,74 @@ func TestReturnValue(t *testing.T) {
 	}
 }
 
+func TestErrorHandling(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"5+true;", "type mismatch: DECIMAL + BOOLEAN"},
+		{"5+true;5;", "type mismatch: DECIMAL + BOOLEAN"},
+		{"-true", "unknown operator: -BOOLEAN"},
+		{"true+false;", "unknown operator: BOOLEAN + BOOLEAN"},
+		{"5;true+false;5;", "unknown operator: BOOLEAN + BOOLEAN"},
+		{"if(10>1){true+false;}", "unknown operator: BOOLEAN + BOOLEAN"},
+		{"if(10>1){if(10>1){ret true+false;}ret 1;}", "unknown operator: BOOLEAN + BOOLEAN"},
+		{"foobar;", "identifier not found: foobar"},
+		{"foobar=5;", "identifier not found: foobar"},
+	}
+	for _, test := range tests {
+		evaluated := testEval(test.input)
+		errObj, ok := evaluated.(*object.Error)
+		if !ok {
+			t.Errorf("no error object returned. got=%T (%+v)", evaluated, evaluated)
+			continue
+		}
+		if errObj.Message != test.expected {
+			t.Errorf("wrong error message. got=%q, want=%q", errObj.Message, test.expected)
+		}
+	}
+}
+
+func TestDefineAndAssignStatement(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected float64
+	}{
+		{"def a=5;a;", 5.0},
+		{"def a=5*5;a;", 25.0},
+		{"def a=5;def b=a;b;", 5.0},
+		{"def a=5;def b=a;def c=a+b+5;c;", 15.0},
+		{"def a=5;a=5*5;a;", 25.0},
+	}
+	for _, test := range tests {
+		testDecimalObj(t, testEval(test.input), test.expected)
+	}
+}
+
+func TestFunctionObj(t *testing.T) {
+	input := "func(x){x+2;}"
+	evaluated := testEval(input)
+	fn, ok := evaluated.(*object.Function)
+	if !ok {
+		t.Fatalf("object is not Function. got=%T (%+v)", evaluated, evaluated)
+	}
+	if len(fn.Parameters) != 1 {
+		t.Fatalf("function has wrong number of parameters. got=%d", len(fn.Parameters))
+	}
+	if fn.Parameters[0].String() != "x" {
+		t.Fatalf("function has wrong parameters. got=%q", fn.Parameters[0].String())
+	}
+	if fn.Body.String() != "{(x+2)}" {
+		t.Fatalf("function has wrong body. got=%q, want=%q", fn.Body.String(), "{(x+2)}")
+	}
+}
+
 func testEval(input string) object.Object {
 	l := lexer.NewLexer(input)
 	p := parser.NewParser(l)
 	pro := p.Parse()
-	return Eval(pro)
+	env := object.NewEnvironment()
+	return Eval(pro, env)
 }
 
 func testDecimalObj(t *testing.T, obj object.Object, expected float64) bool {
