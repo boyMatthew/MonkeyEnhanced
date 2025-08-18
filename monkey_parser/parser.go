@@ -53,31 +53,17 @@ var precedences = map[token.TokenType]Precedence{
 
 func NewParser(l *lexer.Lexer) *Parser {
 	p := &Parser{l: l, errors: []string{}, nudFns: map[token.TokenType]nudFn{}, ledFns: map[token.TokenType]ledFn{}}
-	p.registerNud(token.IDENTIFIER, p.parseIdent)
-	p.registerNud(token.NUMBER, p.parseDecimal)
-	p.registerNud(token.REVERSE, p.parsePrefix)
-	p.registerNud(token.MINUS, p.parsePrefix)
-	p.registerNud(token.BUMPPLUS, p.parsePrefix)
-	p.registerNud(token.BUMPMINUS, p.parsePrefix)
-	p.registerNud(token.TRUE, p.parseBoolean)
-	p.registerNud(token.FALSE, p.parseBoolean)
-	p.registerNud(token.LPAREN, p.parseGroup)
-	p.registerNud(token.IF, p.parseIf)
-	p.registerNud(token.FUNCTION, p.parseFn)
-	p.registerLed(token.EQ, p.parseInfix)
-	p.registerLed(token.NEQ, p.parseInfix)
-	p.registerLed(token.LT, p.parseInfix)
-	p.registerLed(token.LE, p.parseInfix)
-	p.registerLed(token.GT, p.parseInfix)
-	p.registerLed(token.GE, p.parseInfix)
-	p.registerLed(token.PLUS, p.parseInfix)
-	p.registerLed(token.MINUS, p.parseInfix)
-	p.registerLed(token.MULTIPLY, p.parseInfix)
-	p.registerLed(token.DIVIDE, p.parseInfix)
-	p.registerLed(token.LSHIFT, p.parseInfix)
-	p.registerLed(token.RSHIFT, p.parseInfix)
-	p.registerLed(token.LPAREN, p.parseCall)
-	p.registerLed(token.ASSIGN, p.parseAssign)
+	p.registerNuds(p.parseIdent, token.IDENTIFIER)
+	p.registerNuds(p.parseDecimal, token.NUMBER)
+	p.registerNuds(p.parseString, token.STRING)
+	p.registerNuds(p.parseGroup, token.LPAREN)
+	p.registerNuds(p.parseIf, token.IF)
+	p.registerNuds(p.parseFn, token.FUNCTION)
+	p.registerNuds(p.parseBoolean, token.TRUE, token.FALSE)
+	p.registerNuds(p.parsePrefix, token.REVERSE, token.MINUS, token.BUMPPLUS, token.BUMPMINUS)
+	p.registerLeds(p.parseCall, token.LPAREN)
+	p.registerLeds(p.parseAssign, token.ASSIGN)
+	p.registerLeds(p.parseInfix, token.EQ, token.NEQ, token.LT, token.LE, token.GT, token.GE, token.PLUS, token.MINUS, token.MULTIPLY, token.DIVIDE, token.LSHIFT, token.RSHIFT)
 	p.nextToken()
 	p.nextToken()
 	return p
@@ -92,9 +78,17 @@ func (p *Parser) nextToken() {
 	p.peekToken = p.l.NextToken()
 }
 
-func (p *Parser) registerNud(tokenType token.TokenType, fn nudFn) { p.nudFns[tokenType] = fn }
+func (p *Parser) registerNuds(fn nudFn, tokenTypes ...token.TokenType) {
+	for _, tokenType := range tokenTypes {
+		p.nudFns[tokenType] = fn
+	}
+}
 
-func (p *Parser) registerLed(tokenType token.TokenType, fn ledFn) { p.ledFns[tokenType] = fn }
+func (p *Parser) registerLeds(fn ledFn, tokenTypes ...token.TokenType) {
+	for _, tokenType := range tokenTypes {
+		p.ledFns[tokenType] = fn
+	}
+}
 
 func (p *Parser) curTokenIs(t token.TokenType) bool { return p.curToken.Type == t }
 
@@ -389,4 +383,8 @@ func (p *Parser) parseAssign(left ast.Expression) ast.Expression {
 	p.nextToken()
 	assign.Value = p.prattParser(LOWEST)
 	return assign
+}
+
+func (p *Parser) parseString() ast.Expression {
+	return &ast.StringLiteral{Token: p.curToken, Value: p.curToken.Literal}
 }

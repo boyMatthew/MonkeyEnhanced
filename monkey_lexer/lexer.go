@@ -109,6 +109,8 @@ func (l *Lexer) NextToken() token.Token {
 		tok = newToken(token.VERTICAL, l.ch)
 	case 0:
 		tok = token.Token{Type: token.EOF, Literal: ""}
+	case '"':
+		tok = token.Token{Type: token.STRING, Literal: l.readStr()}
 	default:
 		if isLetter(l.ch) {
 			ident := l.readIdent()
@@ -140,6 +142,17 @@ func (l *Lexer) readNum() string {
 	pos := l.pos
 	l.readCh()
 	for hasFloatingPoint := false; isNumber(l.ch, &hasFloatingPoint); l.readCh() {
+	}
+	return l.src[pos:l.pos]
+}
+
+func (l *Lexer) readStr() string {
+	pos := l.pos + 1
+	for {
+		l.readCh()
+		if l.ch == '"' || l.ch == 0 {
+			break
+		}
 	}
 	return l.src[pos:l.pos]
 }

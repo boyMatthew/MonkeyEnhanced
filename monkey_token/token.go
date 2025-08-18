@@ -70,4 +70,5 @@ const (
 	ELSE     = "ELSE"
 	RETURN   = "RETURN"
 	LOOP     = "LOOP"
+	STRING   = "STRING"
 )

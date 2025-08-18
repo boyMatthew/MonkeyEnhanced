@@ -86,6 +86,8 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 			return val
 		}
 		env.Set(node.Name.Value, val)
+	case *ast.StringLiteral:
+		return &object.String{Value: node.Value}
 	}
 	return nil
 }
@@ -179,7 +181,11 @@ func evalInfix(op string, left, right object.Object) object.Object {
 	case left.Type() != right.Type():
 		return newError("type mismatch: %s %s %s", left.Type(), op, right.Type())
 	case left.Type() == object.DECIMAL_OBJ && right.Type() == object.DECIMAL_OBJ:
-		return evalDecimalInfix(op, left.(*object.Decimal).Value, right.(*object.Decimal).Value)
+		return evalDecimalInfix(op, left, right)
+	case left.Type() == object.STRING_OBJ && right.Type() == object.STRING_OBJ:
+		return evalStringConcentration(op, left, right)
+	case left.Type() == object.STRING_OBJ && right.Type() == object.DECIMAL_OBJ:
+		return evalStringMultiplication(op, left, right)
 	case op == "==":
 		return convertBoolean(left == right)
 	case op == "!=":
@@ -189,7 +195,9 @@ func evalInfix(op string, left, right object.Object) object.Object {
 	}
 }
 
-func evalDecimalInfix(op string, left, right float64) object.Object {
+func evalDecimalInfix(op string, leftObj, rightObj object.Object) object.Object {
+	left := leftObj.(*object.Decimal).Value
+	right := rightObj.(*object.Decimal).Value
 	switch op {
 	case "+":
 		return &object.Decimal{Value: left + right}
@@ -216,8 +224,30 @@ func evalDecimalInfix(op string, left, right float64) object.Object {
 	case "<=":
 		return convertBoolean(left <= right)
 	default:
-		return newError("unknown operator: %f %s %f", left, op, right)
+		return newError("unknown operator: %s %s %s", leftObj.Type(), op, rightObj.Type())
 	}
+}
+
+func evalStringConcentration(op string, left, right object.Object) object.Object {
+	if op != "+" {
+		return newError("unknown operator: %s %s %s", left.Type(), op, right.Type())
+	}
+	leftVal := left.(*object.String).Value
+	rightVal := right.(*object.String).Value
+	return &object.String{Value: leftVal + rightVal}
+}
+
+func evalStringMultiplication(op string, left, right object.Object) object.Object {
+	if op != "*" {
+		return newError("unknown operator: %s %s %s", left.Type(), op, right.Type())
+	}
+	leftVal := left.(*object.String).Value
+	rightVal := int(right.(*object.Decimal).Value)
+	finalVal := ""
+	for i := 0; i < rightVal; i++ {
+		finalVal += leftVal
+	}
+	return &object.String{Value: finalVal}
 }
 
 func evalCondition(ce *ast.ConditionExpression, env *object.Environment) object.Object {

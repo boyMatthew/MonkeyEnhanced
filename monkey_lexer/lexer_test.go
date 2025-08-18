@@ -26,6 +26,8 @@ func TestLexer(t *testing.T) {
 		karma:a:bitch;
 		for(def x = 0;| x < 10;| ++x) {}
 		while(true) {}
+		"foobar"
+		"foo\t\r\n bar"
 	`
 	tests := []aTest{
 		{token.DEFINE, "def"},
@@ -144,6 +146,8 @@ func TestLexer(t *testing.T) {
 		{token.RPAREN, ")"},
 		{token.LBRACE, "{"},
 		{token.RBRACE, "}"},
+		{token.STRING, "foobar"},
+		{token.STRING, `foo\t\r\n bar`},
 		{token.EOF, ""},
 	}
 	dealTesting(t, input, tests)
