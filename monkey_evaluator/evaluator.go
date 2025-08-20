@@ -12,6 +12,61 @@ var (
 	FALSE = &object.Boolean{Value: false}
 )
 
+var builtins = map[string]*object.Builtin{
+	"len": &object.Builtin{
+		Name: "len",
+		Fn: func(args ...object.Object) object.Object {
+			if len(args) != 1 {
+				return newError("wrong number of arguments. got=%d, want=1", len(args))
+			}
+			switch arg := args[0].(type) {
+			case *object.String:
+				return &object.Decimal{Value: float64(len(arg.Value))}
+			case *object.Array:
+				return &object.Decimal{Value: float64(len(arg.Value))}
+			default:
+				return newError("argument to `len` not supported, got %s", args[0].Type())
+			}
+		},
+	},
+	"truncate": &object.Builtin{
+		Name: "truncate",
+		Fn: func(args ...object.Object) object.Object {
+			if len(args) != 2 && len(args) != 3 {
+				return newError("wrong number of arguments. got=%d, want=2 or 3", len(args))
+			}
+			if args[0].Type() != object.ARRAY_OBJ {
+				return newError("first argument to `truncate` must be array, got %s", args[0].Type())
+			}
+			if args[1].Type() != object.DECIMAL_OBJ {
+				return newError("second argument to `truncate` must be decimal, got %s", args[1].Type())
+			}
+			if len(args) == 3 && args[2].Type() != object.DECIMAL_OBJ {
+				return newError("third argument to `truncate` must be decimal, got %s", args[2].Type())
+			}
+			arr := args[0].(*object.Array)
+			length := len(arr.Value)
+			if length <= 0 {
+				return NULL
+			}
+			first := int(args[1].(*object.Decimal).Value)
+			if len(args) == 2 {
+				newArr := make([]object.Object, length-first)
+				copy(newArr, arr.Value[first:length])
+				return &object.Array{Value: newArr}
+			} else {
+				last := int(args[2].(*object.Decimal).Value)
+				if last < first {
+					first, last = last, first
+				}
+				newArr := make([]object.Object, last-first+1)
+				copy(newArr, arr.Value[first:last])
+				return &object.Array{Value: newArr}
+			}
+		},
+	},
+}
+
 func newError(format string, a ...interface{}) *object.Error {
 	return &object.Error{Message: fmt.Sprintf(format, a...)}
 }
@@ -88,6 +143,22 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		env.Set(node.Name.Value, val)
 	case *ast.StringLiteral:
 		return &object.String{Value: node.Value}
+	case *ast.ArrayLiteral:
+		eles := evalExps(node.Value, env)
+		if len(eles) == 1 && isError(eles[0]) {
+			return eles[0]
+		}
+		return &object.Array{Value: eles}
+	case *ast.IndexExpression:
+		left := Eval(node.Left, env)
+		if isError(left) {
+			return left
+		}
+		index := Eval(node.Index, env)
+		if isError(index) {
+			return index
+		}
+		return evalIndex(left, index)
 	}
 	return nil
 }
@@ -178,14 +249,14 @@ func evalBumpMinus(right object.Object) object.Object {
 
 func evalInfix(op string, left, right object.Object) object.Object {
 	switch {
+	case left.Type() == object.STRING_OBJ && right.Type() == object.DECIMAL_OBJ:
+		return evalStringMultiplication(op, left, right)
 	case left.Type() != right.Type():
 		return newError("type mismatch: %s %s %s", left.Type(), op, right.Type())
 	case left.Type() == object.DECIMAL_OBJ && right.Type() == object.DECIMAL_OBJ:
 		return evalDecimalInfix(op, left, right)
 	case left.Type() == object.STRING_OBJ && right.Type() == object.STRING_OBJ:
 		return evalStringConcentration(op, left, right)
-	case left.Type() == object.STRING_OBJ && right.Type() == object.DECIMAL_OBJ:
-		return evalStringMultiplication(op, left, right)
 	case op == "==":
 		return convertBoolean(left == right)
 	case op == "!=":
@@ -264,11 +335,13 @@ func evalCondition(ce *ast.ConditionExpression, env *object.Environment) object.
 }
 
 func evalIdent(node *ast.Identifier, env *object.Environment) object.Object {
-	val, ok := env.Get(node.Value)
-	if !ok {
-		return newError("identifier not found: %s", node.Value)
+	if val, ok := env.Get(node.Value); ok {
+		return val
 	}
-	return val
+	if builtin, ok := builtins[node.Value]; ok {
+		return builtin
+	}
+	return newError("identifier not found: %s", node.Value)
 }
 
 func evalExps(exps []ast.Expression, env *object.Environment) []object.Object {
@@ -284,13 +357,16 @@ func evalExps(exps []ast.Expression, env *object.Environment) []object.Object {
 }
 
 func applyFunc(fn object.Object, args []object.Object) object.Object {
-	function, ok := fn.(*object.Function)
-	if !ok {
+	switch function := fn.(type) {
+	case *object.Function:
+		env := extendFuncEnv(function, args)
+		evaluated := Eval(function.Body, env)
+		return getReturnValue(evaluated)
+	case *object.Builtin:
+		return function.Fn(args...)
+	default:
 		return newError("not a function: %s", fn.Type())
 	}
-	env := extendFuncEnv(function, args)
-	evaluated := Eval(function.Body, env)
-	return getReturnValue(evaluated)
 }
 
 func extendFuncEnv(fn *object.Function, args []object.Object) *object.Environment {
@@ -306,4 +382,23 @@ func getReturnValue(obj object.Object) object.Object {
 		return retValue.Value
 	}
 	return obj
+}
+
+func evalIndex(left, index object.Object) object.Object {
+	switch {
+	case left.Type() == object.ARRAY_OBJ && index.Type() == object.DECIMAL_OBJ:
+		return evalArrayIndex(left, index)
+	default:
+		return newError("index operator not supported: %s", left.Type())
+	}
+}
+
+func evalArrayIndex(array, index object.Object) object.Object {
+	arrayObj := array.(*object.Array)
+	idx := int64(index.(*object.Decimal).Value)
+	maxLen := int64(len(arrayObj.Value) - 1)
+	if idx > maxLen || idx < 0 {
+		return NULL
+	}
+	return arrayObj.Value[idx]
 }

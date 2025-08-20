@@ -31,6 +31,7 @@ const (
 	SHIFT
 	PREFIX
 	CALL
+	INDEX
 	ASSIGN
 )
 
@@ -49,6 +50,7 @@ var precedences = map[token.TokenType]Precedence{
 	token.RSHIFT:   SHIFT,
 	token.LPAREN:   CALL,
 	token.ASSIGN:   ASSIGN,
+	token.LBRACKET: INDEX,
 }
 
 func NewParser(l *lexer.Lexer) *Parser {
@@ -61,9 +63,11 @@ func NewParser(l *lexer.Lexer) *Parser {
 	p.registerNuds(p.parseFn, token.FUNCTION)
 	p.registerNuds(p.parseBoolean, token.TRUE, token.FALSE)
 	p.registerNuds(p.parsePrefix, token.REVERSE, token.MINUS, token.BUMPPLUS, token.BUMPMINUS)
+	p.registerNuds(p.parseArray, token.LBRACKET)
 	p.registerLeds(p.parseCall, token.LPAREN)
 	p.registerLeds(p.parseAssign, token.ASSIGN)
 	p.registerLeds(p.parseInfix, token.EQ, token.NEQ, token.LT, token.LE, token.GT, token.GE, token.PLUS, token.MINUS, token.MULTIPLY, token.DIVIDE, token.LSHIFT, token.RSHIFT)
+	p.registerLeds(p.parseIndex, token.LBRACKET)
 	p.nextToken()
 	p.nextToken()
 	return p
@@ -350,14 +354,30 @@ func (p *Parser) parseFnParams() []*ast.Identifier {
 
 func (p *Parser) parseCall(fn ast.Expression) ast.Expression {
 	exp := &ast.CallExpression{Token: p.curToken, Function: fn}
-	exp.Arguments = p.parseCallArgs()
+	exp.Arguments = p.parseExpList(token.RPAREN)
 	return exp
 }
 
-func (p *Parser) parseCallArgs() []ast.Expression {
+func (p *Parser) parseArray() ast.Expression {
+	array := &ast.ArrayLiteral{Token: p.curToken}
+	array.Value = p.parseExpList(token.RBRACKET)
+	return array
+}
+
+func (p *Parser) parseIndex(left ast.Expression) ast.Expression {
+	exp := &ast.IndexExpression{Token: p.curToken, Left: left}
+	p.nextToken()
+	exp.Index = p.prattParser(LOWEST)
+	if !p.expectNext(token.RBRACKET) {
+		return nil
+	}
+	return exp
+}
+
+func (p *Parser) parseExpList(end token.TokenType) []ast.Expression {
 	args := []ast.Expression{}
 	p.nextToken()
-	if p.curTokenIs(token.RPAREN) {
+	if p.curTokenIs(end) {
 		return args
 	}
 	args = append(args, p.prattParser(LOWEST))
@@ -366,7 +386,7 @@ func (p *Parser) parseCallArgs() []ast.Expression {
 		p.nextToken()
 		args = append(args, p.prattParser(LOWEST))
 	}
-	if !p.expectNext(token.RPAREN) {
+	if !p.expectNext(end) {
 		return nil
 	}
 	return args

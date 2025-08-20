@@ -8,6 +8,7 @@ import (
 )
 
 type ObjectType string
+type BuiltinFn func(args ...Object) Object
 
 const (
 	DECIMAL_OBJ      ObjectType = "DECIMAL"
@@ -17,6 +18,8 @@ const (
 	ERROR_OBJ                   = "ERROR"
 	FUNCTION_OBJ                = "FUNCTION"
 	STRING_OBJ                  = "STRING"
+	BUILTIN_OBJ                 = "BUILTIN"
+	ARRAY_OBJ                   = "ARRAY"
 )
 
 type Object interface {
@@ -117,3 +120,28 @@ type String struct {
 
 func (s *String) Type() ObjectType { return STRING_OBJ }
 func (s *String) Inspect() string  { return s.Value }
+
+type Builtin struct {
+	Name string
+	Fn   BuiltinFn
+}
+
+func (b *Builtin) Type() ObjectType { return BUILTIN_OBJ }
+func (b *Builtin) Inspect() string  { return fmt.Sprintf("<builtin function: %s>", b.Name) }
+
+type Array struct {
+	Value []Object
+}
+
+func (a *Array) Type() ObjectType { return ARRAY_OBJ }
+func (a *Array) Inspect() string {
+	var out bytes.Buffer
+	out.WriteString("[")
+	eles := []string{}
+	for _, e := range a.Value {
+		eles = append(eles, e.Inspect())
+	}
+	out.WriteString(strings.Join(eles, ", "))
+	out.WriteString("]")
+	return out.String()
+}
