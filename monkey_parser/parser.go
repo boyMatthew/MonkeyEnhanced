@@ -63,6 +63,7 @@ func NewParser(l *lexer.Lexer) *Parser {
 	p.registerNuds(p.parseFn, token.FUNCTION)
 	p.registerNuds(p.parseBoolean, token.TRUE, token.FALSE)
 	p.registerNuds(p.parsePrefix, token.REVERSE, token.MINUS, token.BUMPPLUS, token.BUMPMINUS)
+	p.registerNuds(p.parseHash, token.LBRACE)
 	p.registerNuds(p.parseArray, token.LBRACKET)
 	p.registerLeds(p.parseCall, token.LPAREN)
 	p.registerLeds(p.parseAssign, token.ASSIGN)
@@ -407,4 +408,26 @@ func (p *Parser) parseAssign(left ast.Expression) ast.Expression {
 
 func (p *Parser) parseString() ast.Expression {
 	return &ast.StringLiteral{Token: p.curToken, Value: p.curToken.Literal}
+}
+
+func (p *Parser) parseHash() ast.Expression {
+	hash := &ast.HashLiteral{Token: p.curToken}
+	hash.Pairs = make(map[ast.Expression]ast.Expression)
+	for !p.nextTokenIs(token.RBRACE) {
+		p.nextToken()
+		k := p.prattParser(LOWEST)
+		if !p.expectNext(token.COLON) {
+			return nil
+		}
+		p.nextToken()
+		v := p.prattParser(LOWEST)
+		hash.Pairs[k] = v
+		if !p.nextTokenIs(token.RBRACE) && !p.expectNext(token.COMMA) {
+			return nil
+		}
+	}
+	if !p.expectNext(token.RBRACE) {
+		return nil
+	}
+	return hash
 }

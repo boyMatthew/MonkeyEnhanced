@@ -65,6 +65,33 @@ var builtins = map[string]*object.Builtin{
 			}
 		},
 	},
+	"append": &object.Builtin{
+		Name: "append",
+		Fn: func(args ...object.Object) object.Object {
+			if len(args) < 2 {
+				return newError("wrong number of arguments. got=%d, want=2+.", len(args))
+			}
+			if args[0].Type() != object.ARRAY_OBJ {
+				return newError("argument to `append` must be ARRAY, got %s.", args[0].Type())
+			}
+			arr := args[0].(*object.Array)
+			length := len(arr.Value)
+			eleLen := len(args) - 1
+			newElem := make([]object.Object, length+eleLen)
+			copy(newElem, arr.Value)
+			newElem = append(newElem, arr.Value[1:]...)
+			return &object.Array{Value: newElem}
+		},
+	},
+	"puts": &object.Builtin{
+		Name: "puts",
+		Fn: func(args ...object.Object) object.Object {
+			for _, arg := range args {
+				fmt.Println(arg.Inspect())
+			}
+			return NULL
+		},
+	},
 }
 
 func newError(format string, a ...interface{}) *object.Error {
@@ -144,11 +171,11 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 	case *ast.StringLiteral:
 		return &object.String{Value: node.Value}
 	case *ast.ArrayLiteral:
-		eles := evalExps(node.Value, env)
-		if len(eles) == 1 && isError(eles[0]) {
-			return eles[0]
+		elems := evalExps(node.Value, env)
+		if len(elems) == 1 && isError(elems[0]) {
+			return elems[0]
 		}
-		return &object.Array{Value: eles}
+		return &object.Array{Value: elems}
 	case *ast.IndexExpression:
 		left := Eval(node.Left, env)
 		if isError(left) {
@@ -159,6 +186,8 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 			return index
 		}
 		return evalIndex(left, index)
+	case *ast.HashLiteral:
+		return evalHash(node, env)
 	}
 	return nil
 }
@@ -388,6 +417,8 @@ func evalIndex(left, index object.Object) object.Object {
 	switch {
 	case left.Type() == object.ARRAY_OBJ && index.Type() == object.DECIMAL_OBJ:
 		return evalArrayIndex(left, index)
+	case left.Type() == object.HASH_OBJ:
+		return evalHashIndex(left, index)
 	default:
 		return newError("index operator not supported: %s", left.Type())
 	}
@@ -396,9 +427,46 @@ func evalIndex(left, index object.Object) object.Object {
 func evalArrayIndex(array, index object.Object) object.Object {
 	arrayObj := array.(*object.Array)
 	idx := int64(index.(*object.Decimal).Value)
-	maxLen := int64(len(arrayObj.Value) - 1)
-	if idx > maxLen || idx < 0 {
+	maxLen := int64(len(arrayObj.Value))
+	if idx < 0 {
+		idx += maxLen
+	}
+	if idx > maxLen-1 || idx < 0 {
 		return NULL
 	}
 	return arrayObj.Value[idx]
+}
+
+func evalHashIndex(hash, index object.Object) object.Object {
+	hashObj := hash.(*object.Hash)
+	k, ok := index.(object.HashAble)
+	if !ok {
+		return newError("unusable as hash key: %s", index.Type())
+	}
+	pair, ok := hashObj.Pairs[k.HashKey()]
+	if !ok {
+		return NULL
+	}
+	return pair.Value
+}
+
+func evalHash(node *ast.HashLiteral, env *object.Environment) object.Object {
+	pairs := make(map[object.HashKey]object.HashPair)
+	for kNode, vNode := range node.Pairs {
+		k := Eval(kNode, env)
+		if isError(k) {
+			return k
+		}
+		hashKey, ok := k.(object.HashAble)
+		if !ok {
+			return newError("unusable as hash key: %s", k.Type())
+		}
+		v := Eval(vNode, env)
+		if isError(v) {
+			return v
+		}
+		hashed := hashKey.HashKey()
+		pairs[hashed] = object.HashPair{Key: k, Value: v}
+	}
+	return &object.Hash{Pairs: pairs}
 }

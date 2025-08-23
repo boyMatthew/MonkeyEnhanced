@@ -3,7 +3,10 @@ package monkey_object
 import (
 	"bytes"
 	"fmt"
+	"hash/fnv"
+	"math"
 	ast "myMonkey/monkey_ast"
+	"strconv"
 	"strings"
 )
 
@@ -20,11 +23,32 @@ const (
 	STRING_OBJ                  = "STRING"
 	BUILTIN_OBJ                 = "BUILTIN"
 	ARRAY_OBJ                   = "ARRAY"
+	HASH_OBJ                    = "HASH"
 )
 
 type Object interface {
 	Type() ObjectType
 	Inspect() string
+}
+
+type HashAble interface {
+	HashKey() HashKey
+}
+
+type HashKey struct {
+	Type  ObjectType
+	Value uint64
+}
+
+type HashPair struct {
+	Key, Value Object
+}
+
+func boolToInt(b bool) uint64 {
+	if b {
+		return 1
+	}
+	return 0
 }
 
 type Decimal struct {
@@ -33,6 +57,26 @@ type Decimal struct {
 
 func (d *Decimal) Inspect() string  { return fmt.Sprintf("%f", d.Value) }
 func (d *Decimal) Type() ObjectType { return DECIMAL_OBJ }
+func (d *Decimal) HashKey() HashKey {
+	var out bytes.Buffer
+	iNT, frac := math.Modf(d.Value)
+	fmt.Fprintf(&out, "%d%d%d%d", int(iNT), int(frac), countDecimalPlaces(d.Value), boolToInt(d.Value < 0))
+	val, err := strconv.Atoi(out.String())
+	if err != nil {
+		panic(err)
+	}
+	return HashKey{Type: d.Type(), Value: uint64(val)}
+}
+
+func countDecimalPlaces(f float64) int {
+	_, frac := math.Modf(f)
+	fracStr := fmt.Sprintf("%g", frac)
+	dotIndex := strings.IndexByte(fracStr, '.')
+	if dotIndex == -1 {
+		return 0
+	}
+	return len(fracStr) - dotIndex - 1
+}
 
 type Boolean struct {
 	Value bool
@@ -40,6 +84,7 @@ type Boolean struct {
 
 func (b *Boolean) Inspect() string  { return fmt.Sprintf("%t", b.Value) }
 func (b *Boolean) Type() ObjectType { return BOOLEAN_OBJ }
+func (b *Boolean) HashKey() HashKey { return HashKey{Type: b.Type(), Value: boolToInt(b.Value)} }
 
 type Null struct{}
 
@@ -120,6 +165,11 @@ type String struct {
 
 func (s *String) Type() ObjectType { return STRING_OBJ }
 func (s *String) Inspect() string  { return s.Value }
+func (s *String) HashKey() HashKey {
+	h := fnv.New64a()
+	h.Write([]byte(s.Value))
+	return HashKey{Type: s.Type(), Value: h.Sum64()}
+}
 
 type Builtin struct {
 	Name string
@@ -137,11 +187,29 @@ func (a *Array) Type() ObjectType { return ARRAY_OBJ }
 func (a *Array) Inspect() string {
 	var out bytes.Buffer
 	out.WriteString("[")
-	eles := []string{}
+	elems := []string{}
 	for _, e := range a.Value {
-		eles = append(eles, e.Inspect())
+		elems = append(elems, e.Inspect())
 	}
-	out.WriteString(strings.Join(eles, ", "))
+	out.WriteString(strings.Join(elems, ", "))
 	out.WriteString("]")
+	return out.String()
+}
+
+type Hash struct {
+	Pairs map[HashKey]HashPair
+}
+
+func (h *Hash) Type() ObjectType { return HASH_OBJ }
+func (h *Hash) Inspect() string {
+	var out bytes.Buffer
+	pairs := []string{}
+	for _, p := range h.Pairs {
+		pStr := fmt.Sprintf("%s: %s", p.Key.Inspect(), p.Value.Inspect())
+		pairs = append(pairs, pStr)
+	}
+	out.WriteString("{")
+	out.WriteString(strings.Join(pairs, ", "))
+	out.WriteString("}")
 	return out.String()
 }

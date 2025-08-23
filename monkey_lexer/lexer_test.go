@@ -28,6 +28,7 @@ func TestLexer(t *testing.T) {
 		while(true) {}
 		"foobar"
 		"foo\t\r\n bar"
+		{"Name": "Monkey"}
 	`
 	tests := []aTest{
 		{token.DEFINE, "def"},
@@ -148,6 +149,11 @@ func TestLexer(t *testing.T) {
 		{token.RBRACE, "}"},
 		{token.STRING, "foobar"},
 		{token.STRING, `foo\t\r\n bar`},
+		{token.LBRACE, "{"},
+		{token.STRING, "Name"},
+		{token.COLON, ":"},
+		{token.STRING, "Monkey"},
+		{token.RBRACE, "}"},
 		{token.EOF, ""},
 	}
 	dealTesting(t, input, tests)

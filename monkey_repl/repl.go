@@ -41,7 +41,7 @@ func Start(read io.Reader, write io.Writer) error {
 			continue
 		}
 		evaluated := evaluator.Eval(pro, env)
-		if evaluated != nil {
+		if evaluated != nil && evaluated != evaluator.NULL {
 			_, err = fmt.Fprintf(write, WRITEPROMPT, i)
 			if err != nil {
 				return fmt.Errorf("%d: write WRITEPROMPT failed: %v", i, err)
