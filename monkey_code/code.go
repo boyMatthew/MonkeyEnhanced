@@ -1,6 +1,7 @@
 package monkey_code
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 )
@@ -51,4 +52,49 @@ func Make(op Opcode, operands ...int) []byte {
 		offset += wid
 	}
 	return instruction
+}
+
+func (ins Instructions) String() string {
+	var out bytes.Buffer
+	i := 0
+	for i < len(ins) {
+		def, err := Lookup(Opcode(ins[i]))
+		if err != nil {
+			fmt.Fprintf(&out, "ERROR: %s\n", err)
+			continue
+		}
+		operands, read := ReadOperands(def, ins[i+1:])
+		fmt.Fprintf(&out, "%04d %s\n", i, ins.fmtIns(def, operands))
+		i += read + 1
+	}
+	return out.String()
+}
+
+func (ins Instructions) fmtIns(def *Definition, operands []int) string {
+	operandCount := len(def.OpWidths)
+	if len(operands) != operandCount {
+		return fmt.Sprintf("ERROR: operand len %d does not match defined %d\n", len(operands), operandCount)
+	}
+	switch operandCount {
+	case 1:
+		return fmt.Sprintf("%s %d", def.Name, operands[0])
+	}
+	return fmt.Sprintf("ERROR: unhandled operand count for %s\n", def.Name)
+}
+
+func ReadOperands(def *Definition, ins Instructions) ([]int, int) {
+	operands := make([]int, len(def.OpWidths))
+	offset := 0
+	for i, w := range def.OpWidths {
+		switch w {
+		case 2:
+			operands[i] = int(ReadUint16(ins[offset:]))
+		}
+		offset += w
+	}
+	return operands, offset
+}
+
+func ReadUint16(ins Instructions) uint16 {
+	return binary.BigEndian.Uint16(ins)
 }
